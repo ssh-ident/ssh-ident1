@@ -200,10 +200,10 @@ To have multiple identities, all I have to do is:
   # Recognize the elements with the host and the repository path to switch
   # between 'personal' and 'work' identity.
   MATCH_ARGV = [
-    [r"\s(git@)?github\.com\s.*'company\/.+\.git'", "work"],
-    [r"\s(git@)?github\.com\s.*'ccontavalli\/.+\.git'", "personal"],
-    [r"\s(git@)?gist\.github\.com\s.*'abcdef01234567890fedcba912345678\.git'", "work"],
-    [r"^(git@)?(gist\.)?github\.com$", "personal"],
+    [r"\\s(git@)?github\\.com\\s.*'company\\/.+\\.git'", "work"],
+    [r"\\s(git@)?github\\.com\\s.*'ccontavalli\\/.+\\.git'", "personal"],
+    [r"\\s(git@)?gist\\.github\\.com\\s.*'abcdef01234567890fedcba912345678\\.git'", "work"],
+    [r"^(git@)?(gist\\.)?github\\.com$", "personal"],
   ]
 
   # Note that if no match is found, the DEFAULT_IDENTITY is used. This is
@@ -350,7 +350,7 @@ The defaults of PATTERN_PUBKEYS and PATTERN_PRIVKEYS for the public and private
 key determination are:
 
       PATTERN_PUBKEYS = [
-          [r"\.pub$", 0],
+          [r"\\.pub$", 0],
           [r"public", 0],
       ]
       PATTERN_PRIVKEYS = [
@@ -379,10 +379,10 @@ you can define in your .ssh-ident:
         r"^id_",
         r"^identity",
         r"^ssh[0-9]-",
-        r"(\.key|\.pub)$",
+        r"(\\.key|\\.pub)$",
       ]
       PATTERN_PRIVKEYS = [
-          [r"\.key$", 0],
+          [r"\\.key$", 0],
           [r"private", 0],
           # Fallback for all remaining files.
           [r"", None],
