@@ -1,0 +1,42 @@
+.TH ssh-ident 1
+.SH NAME
+ssh-ident \- Different agents and different keys for different projects, with ssh.
+.SH DESCRIPTION
+.B ssh-ident
+is a script to start ssh-agents and load ssh keys on demand,
+they are first needed.
+
+All you have to do is modify your .bashrc to have:
+
+      alias ssh='/path/to/ssh-ident'
+
+or add a link to ssh-ident from a directory in your PATH, for example:
+
+      ln -s /path/to/ssh-ident ~/bin/ssh
+
+If you use scp or rsync regularly, you should add a few more lines described
+below.
+
+In any case, ssh-ident:
+
+- will create an ssh-agent and load the keys you need the first time you
+  actually need them, once. No matter how many terminals, ssh or login
+  sessions you have, no matter if your home is shared via NFS.
+
+- can prepare and use a different agent, different set of keys and different
+  ssh config file depending on the host you are connecting to, or the
+  directory you are using ssh from.
+  This allows for isolating keys when using agent forwarding with different
+  sites (eg, university, work, home, secret evil internet identity, ...).
+  It also allows one to use multiple accounts on sites like github, unfuddle
+  and gitorious easily.
+
+- allows to specify different options for each set of keys. For example, you
+  can provide a -t 60 to keep keys loaded for at most 60 seconds. Or -c to
+  always ask for confirmation before using a key.
+
+
+.SH SEE ALSO
+https://github.com/ssh-ident/ssh-ident1
+
+https://www.ct-unlimited.org/posts/ssh-ident/
