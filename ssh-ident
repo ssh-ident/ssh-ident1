@@ -707,8 +707,8 @@ class Config(object):
     self.values = variables
     return self
 
-  @staticmethod
-  def Expand(value):
+  @classmethod
+  def Expand(cls, value):
     """Expand environment variables or ~ in string parameters."""
     if isinstance(value, str):
       return os.path.expanduser(os.path.expandvars(value))
@@ -1113,10 +1113,10 @@ class AgentManager(object):
         continue
     return fingerprints
 
-  @staticmethod
-  def GetPublicKeyFingerprint(key):
+  @classmethod
+  def GetPublicKeyFingerprint(cls, key):
     """Returns the fingerprint of a public key as a string."""
-    retval, stdout = AgentManager.RunShellCommand(
+    retval, stdout = cls.RunShellCommand(
         "ssh-keygen -l -f {0} |tr -s ' '".format(key))
     if retval:
       return None
@@ -1127,8 +1127,8 @@ class AgentManager(object):
       return None
     return fingerprint
 
-  @staticmethod
-  def GetAgentFile(path, identity, config, binary):
+  @classmethod
+  def GetAgentFile(cls, path, identity, config, binary):
     """Returns the path to an agent config file.
 
     Args:
@@ -1153,7 +1153,7 @@ class AgentManager(object):
     # Use the hostname as part of the path just in case this is on NFS.
     agentfile = os.path.join(
         path, "agent-{0}-{1}".format(identity, socket.gethostname()))
-    if os.access(agentfile, os.R_OK) and AgentManager.IsAgentFileValid(agentfile, config):
+    if os.access(agentfile, os.R_OK) and cls.IsAgentFileValid(agentfile, config):
       print("Agent for identity {0} ready".format(identity), file=sys.stderr,
           loglevel=LOG_DEBUG)
       return agentfile
@@ -1170,10 +1170,10 @@ class AgentManager(object):
         ["/usr/bin/env", "-i", "/bin/sh", "-c", "{0} > {1}".format(config.Get("BINARY_SSH_AGENT"), agentfile)])
     return agentfile
 
-  @staticmethod
-  def IsAgentFileValid(agentfile, config):
+  @classmethod
+  def IsAgentFileValid(cls, agentfile, config):
     """Returns true if the specified agentfile refers to a running agent."""
-    retval, output = AgentManager.RunShellCommandInAgent(
+    retval, output = cls.RunShellCommandInAgent(
         agentfile, "{0} -l >/dev/null 2>/dev/null".format(config.Get("BINARY_SSH_ADD")))
     if retval & 0xff not in [0, 1]:
       print("Agent in {0} not running".format(agentfile), file=sys.stderr,
@@ -1181,16 +1181,16 @@ class AgentManager(object):
       return False
     return True
 
-  @staticmethod
-  def RunShellCommand(command):
+  @classmethod
+  def RunShellCommand(cls, command):
     """Runs a shell command, returns (status, stdout), (int, string)."""
     command = ["/bin/sh", "-c", command]
     process = subprocess.Popen(command, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
     return process.wait(), stdout
 
-  @staticmethod
-  def RunShellCommandInAgent(agentfile, command, stdin=None, stdout=subprocess.PIPE):
+  @classmethod
+  def RunShellCommandInAgent(cls, agentfile, command, stdin=None, stdout=subprocess.PIPE):
     """Runs a shell command with an agent configured in the environment."""
     command = ["/bin/sh", "-c",
                ". {0} >/dev/null 2>/dev/null; {1}".format(agentfile, command)]
@@ -1201,8 +1201,8 @@ class AgentManager(object):
     stdout, stderr = process.communicate()
     return process.wait(), stdout
 
-  @staticmethod
-  def EscapeShellArguments(argv):
+  @classmethod
+  def EscapeShellArguments(cls, argv):
     """Escapes all arguments to the shell, returns a string."""
     escaped = []
     for arg in argv:
