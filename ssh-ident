@@ -366,14 +366,14 @@ recognize key pairs. A zero (0) means remove the whole match. 'None' means do
 not remove anything and leave filename as is.
 
 If you want to only load keys that have "mykey" in their filename, you can
-define in your .ssh-ident:
+define in your ssh-ident config file:
 
       PATTERN_KEYS = [
         "mykey",
       ]
 
 If you want to also load keys that have the extension ".key" or ".pub", then
-you can define in your .ssh-ident:
+you can define in your ssh-ident config file:
 
       PATTERN_KEYS = [
         r"^id_",
@@ -394,8 +394,8 @@ Note: As the ".pub" and ".key" patterns come first, files that also have
 
 You can also redefine:
 
-      DIR_IDENTITIES = "$HOME/.ssh/identities"
-      DIR_AGENTS = "$HOME/.ssh/agents"
+      DIR_IDENTITIES = "${HOME}/.ssh/identities"
+      DIR_AGENTS = "${HOME}/.ssh/agents"
 
 To point somewhere else if you so desire.
 
@@ -518,8 +518,8 @@ class SshIdentPrint(object):
 
   def __init__(self, config):
     """
-      config: object implementing the Config interface, allows access to
-          the user configuration parameters.
+    config: object implementing the Config interface, allows access to
+      the user configuration parameters.
 
     Attributes:
       config: same as above.
@@ -579,12 +579,12 @@ class Config(object):
 
   defaults = {
       # Where to find the per-user configuration.
-      "FILE_USER_CONFIG": "$HOME/.ssh-ident",
+      "FILE_USER_CONFIG": "${HOME}/.ssh-ident",
 
       # Where to find all the identities for the user.
-      "DIR_IDENTITIES": "$HOME/.ssh/identities",
+      "DIR_IDENTITIES": "${HOME}/.ssh/identities",
       # Where to keep the information about each running agent.
-      "DIR_AGENTS": "$HOME/.ssh/agents",
+      "DIR_AGENTS": "${HOME}/.ssh/agents",
 
       # How to identify key files in the identities directory.
       "PATTERN_KEYS": [
@@ -1446,7 +1446,7 @@ def main(argv):
 
     Please use BINARY_DIR, or BINARY_SSH plus BINARY_SSH_AGENT plus
     BINARY_SSH_ADD, or change the way ssh-ident is invoked
-    (eg, a different argv[0]) to makeit work correctly.\
+    (eg, a different argv[0]) to make it work correctly.\
     """)
     print(message.format(config.Get("BINARY_SSH"), argv[0]), loglevel=LOG_ERROR)
     sys.exit(255)
