@@ -1439,10 +1439,14 @@ def main(argv):
   # Note that this relies on argv[0] being set sensibly by the caller,
   # which is not always the case. argv[0] may also just have the binary
   # name if found in a path.
-  binary_path = os.path.realpath(
-    FindExecutable(config.Get("BINARY_SSH")))
-  ssh_ident_path = os.path.realpath(
-    FindExecutable(argv[0]))
+  binary_path = config.Get("BINARY_SSH")
+  if binary_path is not None:
+    binary_path = FindExecutable(binary_path)
+    if binary_path is not None:
+      binary_path = os.path.realpath(binary_path)
+  ssh_ident_path = FindExecutable(argv[0])
+  if ssh_ident_path is not None:
+    ssh_ident_path = os.path.realpath(ssh_ident_path)
   if binary_path == ssh_ident_path:
     message = textwrap.dedent("""\
     ssh-ident found '{0}' as the next command to run.
