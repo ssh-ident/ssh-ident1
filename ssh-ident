@@ -170,8 +170,14 @@ Config file with multiple identities
 
 To have multiple identities, all I have to do is:
 
-1) create a ~/.ssh-ident file. In this file, I need to tell ssh-ident which
-   identities to use and when. The file should look something like:
+1) create an ssh-ident config file.
+
+   ssh-ident follows the XDG base dir specs (see https://specifications.freedesktop.org/basedir-spec/latest/)
+   and looks for "${XDG_CONFIG_HOME}/ssh-ident/ssh-ident1" which defaults to "~/.config/ssh-ident/ssh-ident1".
+   When the file at the XDG path is missing, then it looks for the legacy file "${HOME}/.ssh-ident".
+
+   In this file, I need to tell ssh-ident which identities to use and when.
+   The file should look something like:
 
   # Specifies which identity to use depending on the path I'm running ssh
   # from.
@@ -581,7 +587,10 @@ class Config(object):
 
   defaults = {
       # Where to find the per-user configuration.
-      "FILE_USER_CONFIG": "${HOME}/.ssh-ident",
+      "FILE_USER_CONFIG": [
+        '${XDG_CONFIG_HOME}/ssh-ident/ssh-ident1', # XDG config path
+        '${HOME}/.ssh-ident', # legacy path (fallback)
+      ],
 
       # Where to find all the identities for the user.
       "DIR_IDENTITIES": "${HOME}/.ssh/identities",
@@ -700,22 +709,47 @@ class Config(object):
 
   def Load(self):
     """Load configurations from the default user file."""
-    path = self.Get("FILE_USER_CONFIG")
+    paths = self.Get("FILE_USER_CONFIG")
     exec_scope = {}
-    # open and compile file
-    try:
-      with open(path) as file:
-        exec(compile(file.read(), path, 'exec'), LOG_CONSTANTS, exec_scope)
+    for path in paths:
+      # open and compile file
+      try:
+        with open(path) as file:
+          exec(compile(file.read(), path, 'exec'), LOG_CONSTANTS, exec_scope)
+      except IOError:
+        continue
+      #
       self.values = exec_scope
-    except IOError:
-      pass
+      print('Config file read from {path}'.format(path=path),
+          file=sys.stderr,
+          loglevel=LOG_DEBUG)
+      break
     return self
+
+  @classmethod
+  def SetXdgDefaults(cls):
+    # see https://specifications.freedesktop.org/basedir-spec/latest/
+    if not 'XDG_DATA_HOME' in os.environ:
+      os.environ['XDG_DATA_HOME'] = os.path.expandvars('${HOME}/.local/share')
+    if not 'XDG_CONFIG_HOME' in os.environ:
+      os.environ['XDG_CONFIG_HOME'] = os.path.expandvars('${HOME}/.config')
+    if not 'XDG_STATE_HOME' in os.environ:
+      os.environ['XDG_STATE_HOME'] = os.path.expandvars('${HOME}/.local/state')
+    if not 'XDG_CACHE_HOME' in os.environ:
+      os.environ['XDG_CACHE_HOME'] = os.path.expandvars('${HOME}/.cache')
 
   @classmethod
   def Expand(cls, value):
     """Expand environment variables or ~ in string parameters."""
     if isinstance(value, str):
-      return os.path.expanduser(os.path.expandvars(value))
+      value = os.path.expanduser(os.path.expandvars(value))
+    elif isinstance(value, list):
+      try:
+        if isinstance(value[0], str):
+          for index, entry in enumerate(value):
+            value[index] = os.path.expanduser(os.path.expandvars(entry))
+      except IndexError:
+        pass
     return value
 
   def Get(self, parameter):
@@ -1421,10 +1455,16 @@ def main(argv):
   except IOError:
     pass
 
-  config = Config().Load()
-  # overwrite python's print function with the wrapper SshIdentPrint
+  # set defaults in environment and configuration
+  Config.SetXdgDefaults()
+  config = Config()
+
+  # overwrite python's print function with the wrapper SshIdentPrint (needs config)
   global print
   print = SshIdentPrint(config)
+
+  # get user configuration if available
+  config.Load()
 
   # Autodetect BINARY_SSH.
   # Either explicitily defined, ssh-ident as wrapper or fallback to ssh.

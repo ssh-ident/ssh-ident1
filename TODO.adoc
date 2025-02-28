@@ -2,9 +2,9 @@
 
 == Likely changes
 * [x] functionality for ssh-add to load all keys. Idea: `-I <identity>`. Uppercase `i` instead of lowercase to force loading keys.
-* [ ] ssh-askpass issue, empty environmnt, `env -i` https://github.com/ccontavalli/ssh-ident/pull/34 or https://github.com/ccontavalli/ssh-ident/issues/18 +
+* [ ] ssh-askpass issue, empty environmnt, `env -i` https://github.com/ccontavalli/ssh-ident/pull/34 or https://github.com/ccontavalli/ssh-ident/issues/18
+* [x] support https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html[XDG_CONFIG_HOME], https://github.com/ccontavalli/ssh-ident/issues/40 +
 $XDG_CONFIG_HOME defines the base directory relative to which user-specific configuration files should be stored. If $XDG_CONFIG_HOME is either not set or empty, a default equal to $HOME/.config should be used.
-* [ ] support https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html[XDG_CONFIG_HOME], https://github.com/ccontavalli/ssh-ident/issues/40
 * [ ] check `scp user:hostname` issue (colon?), https://github.com/ccontavalli/ssh-ident/issues/35
 
 == Unlikely changes
