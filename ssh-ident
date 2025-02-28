@@ -699,12 +699,14 @@ class Config(object):
   def Load(self):
     """Load configurations from the default user file."""
     path = self.Get("FILE_USER_CONFIG")
-    variables = {}
+    exec_scope = {}
+    # open and compile file
     try:
-      exec(compile(open(path).read(), path, 'exec'), LOG_CONSTANTS, variables)
+      with open(path) as file:
+        exec(compile(file.read(), path, 'exec'), LOG_CONSTANTS, exec_scope)
+      self.values = exec_scope
     except IOError:
-      return self
-    self.values = variables
+      pass
     return self
 
   @classmethod
