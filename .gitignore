@@ -1,6 +1,16 @@
+## from project: ignores for editors, environments, etc.
+.vscode/
+*.code-workspace
+.venv*/
+*.venv*/
+.test*/
+ssh-identc
+
+## from GitHub: Python ignore
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
 *~
 .*.sw?
-ssh-identc
-.venv*/
-__pycache__/
-*.pyc
