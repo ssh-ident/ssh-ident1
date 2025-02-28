@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # vim: tabstop=2 shiftwidth=2 expandtab
+### shebang `/usr/bin/env python` due to Python Virtual Environment
+### if missing on Debian/Ubuntu use package python-is-python3, otherwise create symlink in /usr/local/bin or change shebang
 """Start and use ssh-agent and load identities as necessary.
 
 Use this script to start ssh-agents and load ssh keys on demand,
