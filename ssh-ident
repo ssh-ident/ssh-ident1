@@ -1469,7 +1469,7 @@ def main(argv):
   # Autodetect BINARY_SSH.
   # Either explicitily defined, ssh-ident as wrapper or fallback to ssh.
   binary_checks = {
-    "BINARY_SSH": [os.path.basename(argv[0]), 'ssh', ],
+    "BINARY_SSH": ['ssh', ],
   }
   AutodetectBinary(argv[0], config, binary_checks)
   del binary_checks
