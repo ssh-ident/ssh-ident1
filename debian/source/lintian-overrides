@@ -1,0 +1,2 @@
+ssh-ident source: no-nmu-in-changelog
+ssh-ident source: source-nmu-has-incorrect-version-number *

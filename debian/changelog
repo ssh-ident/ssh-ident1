@@ -1,3 +1,11 @@
+ssh-ident (20220409.1) unstable; urgency=medium
+
+  * update Debian package
+  * add man page
+  * add environment variable to enforce identity
+
+ -- Benedikt Trefzer <benedikt.trefzer@cirrax.com>  Sat, 09 Apr 2022 19:10:04 +0200
+
 ssh-ident (20140619.2318.1) unstable; urgency=low
 
   * Setup initial debian package
