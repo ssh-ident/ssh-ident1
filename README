@@ -43,8 +43,8 @@ DESCRIPTION
     Installation
     ============
 
-    All you need to run ssh-ident is a standard installation of python 2 (>= 2.6).
-    Python 3 is supported, but newer versions may deprecate stuff and will fail.
+    All you need to run ssh-ident is a standard installation of python 3 or 2.7.
+    Newer versions of Python 3 may deprecate stuff and will fail.
 
     If your system has wget and are impatient to use it, you can install
     ssh-ident with two simple commands:
