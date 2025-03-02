@@ -820,13 +820,15 @@ class Config(object):
           entry = result[index] = list(entry)
         # Compile regex
         if isinstance(entry, list):
+          print("{0} #{1}: |{2}| {3}".format(parameter, index+1, entry[0], entry[1:]),
+              file=sys.stderr,
+              loglevel=LOG_DEBUG)
           entry[0] = re.compile(entry[0])
         else:
+          print("{0} #{1}: |{2}|".format(parameter, index+1, entry),
+              file=sys.stderr,
+              loglevel=LOG_DEBUG)
           entry = result[index] = re.compile(entry)
-        #
-        print("{0} #{1}: {2}".format(parameter, index+1, entry),
-            file=sys.stderr,
-            loglevel=LOG_DEBUG)
 
     return result
 
@@ -1307,7 +1309,6 @@ def AutodetectBinary(runtime_name, config, binary_checks):
       for binary_name in binary_checks["BINARY_SSH"]:
         if binary_name:
           binary_names += "{0}'{1}'".format("," if binary_names else "", binary_name)
-          break
       #
       message = textwrap.dedent("""\
         ssh-ident was invoked in place of the binary {0} (determined from argv[0]).
@@ -1394,7 +1395,6 @@ def AutodetectBinary(runtime_name, config, binary_checks):
     for binary_name in binary_checks[config_name]:
       if binary_name:
         binary_names += "{0}'{1}'".format("," if binary_names else "", binary_name)
-        break
   #
   message = textwrap.dedent("""\
     ssh-ident was invoked in place of the binary {0} (determined from argv[0]).
