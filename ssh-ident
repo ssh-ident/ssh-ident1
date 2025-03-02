@@ -471,7 +471,6 @@ import collections
 import errno
 import fcntl
 import getpass
-import glob
 import os
 import re
 import socket
@@ -658,7 +657,7 @@ class Config(object):
 
       # Which identity to use by default if we cannot tell from
       # the current working directory and/or argv.
-      "DEFAULT_IDENTITY": "$USER",
+      "DEFAULT_IDENTITY": "${USER}",
 
       # Those should really be overridden by the user. Look
       # at the documentation for more details.
