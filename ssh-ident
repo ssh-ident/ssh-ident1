@@ -479,19 +479,75 @@ import sys
 import termios
 import textwrap
 
-# Python 3.12+ will deprecate distutils, for distutils.spawn.find_executable() use shutil.which() from 3.3+ as defined in PEP 632 "Deprecate distutils module"
-# Python 3.10+ gives deprecation warnings about distutils
-import warnings
-try:
-  with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
-    import distutils.spawn
-  def FindExecutable(executable, path=None):
-    return distutils.spawn.find_executable(executable, path=path)
-except:
-  import shutil
-  def FindExecutable(cmd, path=None):
-    return shutil.which(cmd, path=path)
+
+## Copy of shutil.which() from Python 3.3.1 (3.3.0 has the same issue as distutils.spawn.find_executable())
+## https://docs.python.org/3.3/library/shutil.html#shutil.which
+## https://github.com/python/cpython/blob/main/Lib/shutil.py
+## https://github.com/python/cpython/blob/v3.3.1/Lib/shutil.py
+## https://github.com/python/cpython/blob/v3.3.0/Lib/shutil.py
+## https://github.com/python/cpython/tree/v2.7.18/Lib/distutils/spawn.py
+def FindExecutable(cmd, mode=os.F_OK | os.X_OK, path=None):
+  """Given a command, mode, and a PATH string, return the path which
+  conforms to the given mode on the PATH, or None if there is no such
+  file.
+
+  `mode` defaults to os.F_OK | os.X_OK. `path` defaults to the result
+  of os.environ.get("PATH"), or can be overridden with a custom search
+  path.
+  """
+
+  # Check that a given file can be accessed with the correct mode.
+  # Additionally check that `file` is not a directory, as on Windows
+  # directories pass the os.access check.
+  def _access_check(fn, mode):
+    return (os.path.exists(fn) and os.access(fn, mode)
+            and not os.path.isdir(fn))
+
+  # If we're given a path with a directory part, look it up directly rather
+  # than referring to PATH directories. This includes checking relative to the
+  # current directory, e.g. ./script
+  if os.path.dirname(cmd):
+    if _access_check(cmd, mode):
+      return cmd
+    return None
+
+  if path is None:
+    path = os.environ.get("PATH", os.defpath)
+  if not path:
+    return None
+  path = path.split(os.pathsep)
+
+  if sys.platform == "win32":
+    # The current directory takes precedence on Windows.
+    if not os.curdir in path:
+      path.insert(0, os.curdir)
+
+    # PATHEXT is necessary to check on Windows.
+    pathext = os.environ.get("PATHEXT", "").split(os.pathsep)
+    # See if the given file matches any of the expected path extensions.
+    # This will allow us to short circuit when given "python.exe".
+    # If it does match, only test that one, otherwise we have to try
+    # others.
+    if any(cmd.lower().endswith(ext.lower()) for ext in pathext):
+      files = [cmd]
+    else:
+      files = [cmd + ext for ext in pathext]
+  else:
+    # On other platforms you don't have things like PATHEXT to tell you
+    # what file suffixes are executable, so just pass on cmd as-is.
+    files = [cmd]
+
+  seen = set()
+  for dir in path:
+    normdir = os.path.normcase(dir)
+    if not normdir in seen:
+      seen.add(normdir)
+      for thefile in files:
+        name = os.path.join(dir, thefile)
+        if _access_check(name, mode):
+          return name
+  return None
+
 
 # constants so noone has deal with cryptic numbers
 LOG_CONSTANTS = {"LOG_ERROR": 1, "LOG_WARN": 2, "LOG_INFO": 3, "LOG_DEBUG": 4}
@@ -1298,6 +1354,9 @@ def AutodetectBinary(runtime_name, config, binary_checks):
         binary_path = os.path.join(binary_path_base, binary_name)
         if not os.path.isfile(binary_path) or not os.access(binary_path, os.X_OK):
           continue
+        if os.path.samefile(binary_path, runtime_name):
+          print("Binary \"{0}\" is \"{1}\" and therefore skipped".format(binary_path, runtime_name), file=sys.stderr, loglevel=LOG_DEBUG)
+          continue
         #
         config.Set(config_name, binary_path)
         print("Will run '{0}' as {1} binary - detected based on BINARY_DIR"
@@ -1325,44 +1384,6 @@ def AutodetectBinary(runtime_name, config, binary_checks):
   if not binary_checks:
     return
 
-  # argv[0] could be pretty much anything the caller decides to set
-  # it to: an absolute path, a relative path (common in older systems),
-  # or even something entirely unrelated.
-  #
-  # Similar is true for __file__, which might even represent a location
-  # that is entirely unrelated to how ssh-ident was found.
-  #
-  # Consider also that there might be symlinks / hard links involved.
-  #
-  # The logic here is pretty straightforward:
-  # - Try to eliminate the path of ssh-ident from PATH.
-  # - Search for a binary with the same name of ssh-ident to run.
-  #
-  # If this fails, we may end up in some sort of loop, where ssh-ident
-  # tries to run itself. This should normally be detected later on,
-  # where the code checks for the next binary to run.
-  #
-  # Note also that users may not be relying on having ssh-ident in the
-  # PATH at all - for example, with "rsync -e '/path/to/ssh-ident' ..."
-  ssh_ident_path = ""
-  if not os.path.dirname(runtime_name):
-    message = textwrap.dedent("""\
-    argv[0] ("{0}") is a relative path. This means that ssh-ident does
-    not know its own directory, and can't exclude it from searching it
-    in ${{PATH}}:
-
-      PATH="{1}"
-
-    This may result in a loop, with 'ssh-ident' trying to run itself.
-    It is recommended that you set BINARY_DIR, or BINARY_SSH plus
-    BINARY_SSH_AGENT plus BINARY_SSH_ADD, or run ssh-ident differently
-    to prevent this problem.\
-    """)
-    print(message.format(runtime_name, os.environ['PATH']),
-          loglevel=LOG_WARN)
-  else:
-    ssh_ident_path = os.path.abspath(os.path.dirname(runtime_name))
-
   # Remove the path containing the ssh-ident symlink (or whatever) from
   # the search path, so we do not cause an infinite loop.
   # Note that:
@@ -1372,21 +1393,38 @@ def AutodetectBinary(runtime_name, config, binary_checks):
   #   all instances of the ssh-ident path.
   normalized_path = [
       os.path.normpath(p) for p in os.environ['PATH'].split(os.pathsep)]
-  search_path = os.pathsep.join([
-      p for p in normalized_path if p != ssh_ident_path])
 
   for config_name in list(binary_checks.keys()):
     for binary_name in binary_checks[config_name]:
-      # Find an executable with the desired name.
-      binary_path = FindExecutable(binary_name, path=search_path)
-      if not binary_path:
-        continue
-      #
-      config.Set(config_name, binary_path)
-      print("Will run '{0}' as {1} binary - detected from argv[0] and ${{PATH}}"
+      # Start with complete PATH for each binary name
+      normalized_path_search = list(normalized_path)
+      # Find an executable with the desired name
+      while True:
+        search_path = os.pathsep.join([p for p in normalized_path_search])
+        binary_path = FindExecutable(binary_name, path=search_path)
+        # if not found, then leave while loop to check next binary name
+        if not binary_path:
+          break
+        # Check that binary is not ssh-ident.
+        # This can happen if the user sets a binary name only (e.g. 'scp') and a
+        # symlink with the same name was set up.
+        # Note that this relies on argv[0] being set sensibly by the caller,
+        # which is not always the case. argv[0] may also just have the binary
+        # name if found in a path.
+        # if same file as ssh-ident, then reduce search path and try again.
+        if os.path.samefile(binary_path, runtime_name):
+          exclude_path = os.path.dirname(binary_path)
+          normalized_path_search.remove(exclude_path)
+          print("Binary \"{0}\" is \"{1}\" and therefore skipped".format(binary_path, runtime_name), file=sys.stderr, loglevel=LOG_DEBUG)
+          continue
+        #
+        config.Set(config_name, binary_path)
+        print("Will run '{0}' as {1} binary - detected from argv[0] and ${{PATH}}"
             .format(config.Get(config_name), binary_checks[config_name][-1]), loglevel=LOG_DEBUG)
-      del binary_checks[config_name]
-      break
+        del binary_checks[config_name]
+        break
+      if binary_path:
+        break # found binary (leave binary_name loop)
   if not binary_checks:
     return
 
@@ -1465,6 +1503,41 @@ def main(argv):
   # get user configuration if available
   config.Load()
 
+  # argv[0] could be pretty much anything the caller decides to set
+  # it to: an absolute path, a relative path (common in older systems),
+  # or even something entirely unrelated.
+  #
+  # Similar is true for __file__, which might even represent a location
+  # that is entirely unrelated to how ssh-ident was found.
+  #
+  # Consider also that there might be symlinks / hard links involved.
+  #
+  # The logic here is pretty straightforward:
+  # - Try to eliminate the path of ssh-ident from PATH.
+  # - Search for a binary with the same name of ssh-ident to run.
+  #
+  # If this fails, we may end up in some sort of loop, where ssh-ident
+  # tries to run itself. This should normally be detected later on,
+  # where the code checks for the next binary to run.
+  #
+  # Note also that users may not be relying on having ssh-ident in the
+  # PATH at all - for example, with "rsync -e '/path/to/ssh-ident' ..."
+  if not os.path.dirname(argv[0]):
+    message = textwrap.dedent("""\
+      argv[0] ("{0}") has no path component. This means that ssh-ident
+      does not know its own directory, and can't exclude it from searching
+      it in ${{PATH}}:
+
+        PATH="{1}"
+
+      This may result in a loop, with 'ssh-ident' trying to run itself.
+      It is recommended that you set BINARY_DIR, or BINARY_SSH plus
+      BINARY_SSH_AGENT plus BINARY_SSH_ADD, or run ssh-ident differently
+      to prevent this problem.\
+    """)
+    print(message.format(argv[0], os.environ['PATH']),
+        loglevel=LOG_WARN)
+
   # Autodetect BINARY_SSH.
   # Either explicitily defined, ssh-ident as wrapper or fallback to ssh.
   binary_checks = {
@@ -1472,31 +1545,6 @@ def main(argv):
   }
   AutodetectBinary(argv[0], config, binary_checks)
   del binary_checks
-  # Check that BINARY_SSH is not ssh-ident.
-  # This can happen if the user sets a binary name only (e.g. 'scp') and a
-  # symlink with the same name was set up.
-  # Note that this relies on argv[0] being set sensibly by the caller,
-  # which is not always the case. argv[0] may also just have the binary
-  # name if found in a path.
-  binary_path = config.Get("BINARY_SSH")
-  if binary_path is not None:
-    binary_path = FindExecutable(binary_path)
-    if binary_path is not None:
-      binary_path = os.path.realpath(binary_path)
-  ssh_ident_path = FindExecutable(argv[0])
-  if ssh_ident_path is not None:
-    ssh_ident_path = os.path.realpath(ssh_ident_path)
-  if binary_path == ssh_ident_path:
-    message = textwrap.dedent("""\
-    ssh-ident found '{0}' as the next command to run.
-    Based on argv[0] ({1}), it seems like this will create a loop.
-
-    Please use BINARY_DIR, or BINARY_SSH plus BINARY_SSH_AGENT plus
-    BINARY_SSH_ADD, or change the way ssh-ident is invoked
-    (eg, a different argv[0]) to make it work correctly.\
-    """)
-    print(message.format(config.Get("BINARY_SSH"), argv[0]), loglevel=LOG_ERROR)
-    sys.exit(255)
   #
   binary = os.path.basename(config.Get("BINARY_SSH"))
   loadkeys = True

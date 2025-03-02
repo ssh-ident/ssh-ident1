@@ -648,7 +648,14 @@ FUNCTIONS
         Detects the correct binaries to run and sets BINARY_SSH* accordingly,
         if it is not already set.
 
-    FindExecutable(executable, path=None)
+    FindExecutable(cmd, mode=1, path=None)
+        Given a command, mode, and a PATH string, return the path which
+        conforms to the given mode on the PATH, or None if there is no such
+        file.
+
+        `mode` defaults to os.F_OK | os.X_OK. `path` defaults to the result
+        of os.environ.get("PATH"), or can be overridden with a custom search
+        path.
 
     FindIdentity(argv, config)
         Returns the identity to use based on current directory or argv.
