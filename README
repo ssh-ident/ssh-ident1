@@ -49,7 +49,7 @@ DESCRIPTION
     If your system has wget and are impatient to use it, you can install
     ssh-ident with two simple commands:
 
-       mkdir -p ~/bin; wget -O ~/bin/ssh goo.gl/MoJuKB; chmod 0755 ~/bin/ssh
+       mkdir -p ~/bin; wget -O ~/bin/ssh https://raw.githubusercontent.com/ssh-ident/ssh-ident1/refs/heads/dev/ssh-ident ; chmod 0755 ~/bin/ssh
 
        echo 'export PATH="${HOME}/bin:${PATH}"' >> ~/.bashrc
 
@@ -101,7 +101,7 @@ DESCRIPTION
        these do not look for ssh in your PATH but use a hard-coded path to the
        binary.
 
-       If you want to use ssh-ident with scp or sftp,  you can simply create
+       If you want to use ssh-ident with scp or sftp, you can simply create
        symlinks for them as well:
 
         ln -s /path/to/ssh-ident ~/bin/scp
@@ -173,8 +173,14 @@ DESCRIPTION
 
     To have multiple identities, all I have to do is:
 
-    1) create a ~/.ssh-ident file. In this file, I need to tell ssh-ident which
-       identities to use and when. The file should look something like:
+    1) create an ssh-ident config file.
+
+       ssh-ident follows the XDG base dir specs (see https://specifications.freedesktop.org/basedir-spec/latest/)
+       and looks for "${XDG_CONFIG_HOME}/ssh-ident/ssh-ident1" which defaults to "~/.config/ssh-ident/ssh-ident1".
+       When the file at the XDG path is missing, then it looks for the legacy file "${HOME}/.ssh-ident".
+
+       In this file, I need to tell ssh-ident which identities to use and when.
+       The file should look something like:
 
       # Specifies which identity to use depending on the path I'm running ssh
       # from.
@@ -264,7 +270,7 @@ DESCRIPTION
       # don't need it. Defaults are 'ssh-agent' and 'ssh-add'.
       # Otherwise, provides ssh-agent/ssh-add binary to use for key handling
       # of specific identities. First fitting entry wins.
-      # Those binaries most be compatible to OpenSSH's implementation.
+      # Those binaries must be compatible to OpenSSH's implementation.
       # First element is a list of identities and second element is the
       # ssh-agent/ssh-add binary name.
       # An empty list means for all identities.
@@ -371,20 +377,20 @@ DESCRIPTION
     not remove anything and leave filename as is.
 
     If you want to only load keys that have "mykey" in their filename, you can
-    define in your .ssh-ident:
+    define in your ssh-ident config file:
 
           PATTERN_KEYS = [
             "mykey",
           ]
 
-    If you want to also load keys that have the extension ".key" or ".pub", then
-    you can define in your .ssh-ident:
+    If you want to also load keys that have the extension ".key" or ".pub", but no
+    tilde (~) at zhe beginning, then you can define in your ssh-ident config file:
 
           PATTERN_KEYS = [
             r"^id_",
             r"^identity",
             r"^ssh[0-9]-",
-            r"(\.key|\.pub)$",
+            r"^[^~].*(\.key|\.pub)$",
           ]
           PATTERN_PRIVKEYS = [
               [r"\.key$", 0],
@@ -399,8 +405,8 @@ DESCRIPTION
 
     You can also redefine:
 
-          DIR_IDENTITIES = "$HOME/.ssh/identities"
-          DIR_AGENTS = "$HOME/.ssh/agents"
+          DIR_IDENTITIES = "${HOME}/.ssh/identities"
+          DIR_AGENTS = "${HOME}/.ssh/agents"
 
     To point somewhere else if you so desire.
 
@@ -526,12 +532,12 @@ CLASSES
      |        BINARY_SSH: path to the ssh binary.
      |
      |  ----------------------------------------------------------------------
-     |  Static methods defined here:
+     |  Class methods defined here:
      |
-     |  EscapeShellArguments(argv)
+     |  EscapeShellArguments(cls, argv) from __builtin__.type
      |      Escapes all arguments to the shell, returns a string.
      |
-     |  GetAgentFile(path, identity, config, binary)
+     |  GetAgentFile(cls, path, identity, config, binary) from __builtin__.type
      |      Returns the path to an agent config file.
      |
      |      Args:
@@ -544,16 +550,16 @@ CLASSES
      |      Returns:
      |        string, path to the agent file.
      |
-     |  GetPublicKeyFingerprint(key)
+     |  GetPublicKeyFingerprint(cls, key) from __builtin__.type
      |      Returns the fingerprint of a public key as a string.
      |
-     |  IsAgentFileValid(agentfile, config)
+     |  IsAgentFileValid(cls, agentfile, config) from __builtin__.type
      |      Returns true if the specified agentfile refers to a running agent.
      |
-     |  RunShellCommand(command)
+     |  RunShellCommand(cls, command) from __builtin__.type
      |      Runs a shell command, returns (status, stdout), (int, string).
      |
-     |  RunShellCommandInAgent(agentfile, command, stdin=None, stdout=-1)
+     |  RunShellCommandInAgent(cls, agentfile, command, stdin=None, stdout=-1) from __builtin__.type
      |      Runs a shell command with an agent configured in the environment.
      |
      |  ----------------------------------------------------------------------
@@ -582,10 +588,12 @@ CLASSES
      |  __init__(self)
      |
      |  ----------------------------------------------------------------------
-     |  Static methods defined here:
+     |  Class methods defined here:
      |
-     |  Expand(value)
+     |  Expand(cls, value) from __builtin__.type
      |      Expand environment variables or ~ in string parameters.
+     |
+     |  SetXdgDefaults(cls) from __builtin__.type
      |
      |  ----------------------------------------------------------------------
      |  Data descriptors defined here:
@@ -609,8 +617,8 @@ CLASSES
      |  __call__ = write(self, *args, **kwargs)
      |
      |  __init__(self, config)
-     |        config: object implementing the Config interface, allows access to
-     |            the user configuration parameters.
+     |      config: object implementing the Config interface, allows access to
+     |        the user configuration parameters.
      |
      |      Attributes:
      |        config: same as above.

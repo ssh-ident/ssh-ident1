@@ -46,7 +46,7 @@ Python 3 is supported, but newer versions may deprecate stuff and will fail.
 If your system has wget and are impatient to use it, you can install
 ssh-ident with two simple commands:
 
-   mkdir -p ~/bin; wget -O ~/bin/ssh goo.gl/MoJuKB; chmod 0755 ~/bin/ssh
+   mkdir -p ~/bin; wget -O ~/bin/ssh https://raw.githubusercontent.com/ssh-ident/ssh-ident1/refs/heads/dev/ssh-ident ; chmod 0755 ~/bin/ssh
 
    echo 'export PATH="${HOME}/bin:${PATH}"' >> ~/.bashrc
 
@@ -98,7 +98,7 @@ to solve the problem:
    these do not look for ssh in your PATH but use a hard-coded path to the
    binary.
 
-   If you want to use ssh-ident with scp or sftp,  you can simply create
+   If you want to use ssh-ident with scp or sftp, you can simply create
    symlinks for them as well:
 
     ln -s /path/to/ssh-ident ~/bin/scp
@@ -267,7 +267,7 @@ To have multiple identities, all I have to do is:
   # don't need it. Defaults are 'ssh-agent' and 'ssh-add'.
   # Otherwise, provides ssh-agent/ssh-add binary to use for key handling
   # of specific identities. First fitting entry wins.
-  # Those binaries most be compatible to OpenSSH's implementation.
+  # Those binaries must be compatible to OpenSSH's implementation.
   # First element is a list of identities and second element is the
   # ssh-agent/ssh-add binary name.
   # An empty list means for all identities.
@@ -380,14 +380,14 @@ define in your ssh-ident config file:
         "mykey",
       ]
 
-If you want to also load keys that have the extension ".key" or ".pub", then
-you can define in your ssh-ident config file:
+If you want to also load keys that have the extension ".key" or ".pub", but no
+tilde (~) at zhe beginning, then you can define in your ssh-ident config file:
 
       PATTERN_KEYS = [
         r"^id_",
         r"^identity",
         r"^ssh[0-9]-",
-        r"(\\.key|\\.pub)$",
+        r"^[^~].*(\\.key|\\.pub)$",
       ]
       PATTERN_PRIVKEYS = [
           [r"\\.key$", 0],
@@ -681,7 +681,7 @@ class Config(object):
 
       # List with multiple identities as key, that defines the ssh-agent/ssh-add
       # binary to handle keys with (first fitting entry wins).
-      # Those binaries most be compatible to OpenSSH's implementation.
+      # Those binaries must be compatible to OpenSSH's implementation.
       # First element is a list of identities and second element is the
       # ssh-agent/ssh-add binary name.
       # An empty list means for all identities.
@@ -1085,7 +1085,7 @@ class AgentManager(object):
     """
     toload = self.FindUnloadedKeys(keys)
     if toload:
-      print("Loading keys:\n    {0}".format( "\n    ".join(toload)),
+      print("Loading keys:\n    {0}".format("\n    ".join(toload)),
           file=sys.stderr, loglevel=LOG_INFO)
       self.LoadKeyFiles(toload)
     else:
@@ -1284,7 +1284,7 @@ def AutodetectBinary(runtime_name, config, binary_checks):
     binary_path = config.Get(config_name)
     if binary_path:
       print("Will run '{0}' as {1} binary - set by user via {2}"
-            .format(binary_path, binary_checks[config_name][-1], config_name), loglevel=LOG_DEBUG)
+          .format(binary_path, binary_checks[config_name][-1], config_name), loglevel=LOG_DEBUG)
       del binary_checks[config_name]
   if not binary_checks:
     return
@@ -1300,7 +1300,7 @@ def AutodetectBinary(runtime_name, config, binary_checks):
         #
         config.Set(config_name, binary_path)
         print("Will run '{0}' as {1} binary - detected based on BINARY_DIR"
-              .format(binary_path, binary_checks[config_name][-1]), loglevel=LOG_DEBUG)
+            .format(binary_path, binary_checks[config_name][-1]), loglevel=LOG_DEBUG)
         del binary_checks[config_name]
         break
     if "BINARY_SSH" in binary_checks:
@@ -1311,14 +1311,14 @@ def AutodetectBinary(runtime_name, config, binary_checks):
           break
       #
       message = textwrap.dedent("""\
-      ssh-ident was invoked in place of the binary {0} (determined from argv[0]).
-      None of {1} could be found executable in BINARY_DIR.
+        ssh-ident was invoked in place of the binary {0} (determined from argv[0]).
+        None of {1} could be found executable in BINARY_DIR.
 
-        BINARY_DIR="{2}"
+          BINARY_DIR="{2}"
 
-      You need to adjust your setup for ssh-ident to work: consider setting
-      BINARY_DIR or BINARY_SSH plus BINARY_SSH_AGENT plus BINARY_SSH_ADD in
-      your config, or running ssh-ident some other way.\
+        You need to adjust your setup for ssh-ident to work: consider setting
+        BINARY_DIR or BINARY_SSH plus BINARY_SSH_AGENT plus BINARY_SSH_ADD in
+        your config, or running ssh-ident some other way.\
       """)
       print(message.format(runtime_name, binary_names, binary_path_base), loglevel=LOG_ERROR)
       sys.exit(255)
@@ -1366,10 +1366,10 @@ def AutodetectBinary(runtime_name, config, binary_checks):
   # Remove the path containing the ssh-ident symlink (or whatever) from
   # the search path, so we do not cause an infinite loop.
   # Note that:
-  #  - paths in PATH may be not-normalized, example: "/usr/bin/../foo",
-  #    or "/opt/scripts///". Normalize them before comparison.
-  #  - paths in PATH may be repeated multiple times. We have to exclude
-  #    all instances of the ssh-ident path.
+  # - paths in PATH may be not-normalized, example: "/usr/bin/../foo",
+  #   or "/opt/scripts///". Normalize them before comparison.
+  # - paths in PATH may be repeated multiple times. We have to exclude
+  #   all instances of the ssh-ident path.
   normalized_path = [
       os.path.normpath(p) for p in os.environ['PATH'].split(os.pathsep)]
   search_path = os.pathsep.join([
@@ -1398,14 +1398,14 @@ def AutodetectBinary(runtime_name, config, binary_checks):
         break
   #
   message = textwrap.dedent("""\
-  ssh-ident was invoked in place of the binary {0} (determined from argv[0]).
-  None of {1} could be found in ${{PATH}}.
+    ssh-ident was invoked in place of the binary {0} (determined from argv[0]).
+    None of {1} could be found in ${{PATH}}.
 
-    PATH="{2}"
+      PATH="{2}"
 
-  You need to adjust your setup for ssh-ident to work: consider setting
-  BINARY_DIR or BINARY_SSH plus BINARY_SSH_AGENT plus BINARY_SSH_ADD in
-  your config, or running ssh-ident some other way.\
+    You need to adjust your setup for ssh-ident to work: consider setting
+    BINARY_DIR or BINARY_SSH plus BINARY_SSH_AGENT plus BINARY_SSH_ADD in
+    your config, or running ssh-ident some other way.\
   """)
   print(message.format(runtime_name, binary_names, os.environ['PATH']), loglevel=LOG_ERROR)
   sys.exit(255)

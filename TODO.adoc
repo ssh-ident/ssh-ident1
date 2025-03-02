@@ -2,10 +2,14 @@
 
 == Likely changes
 * [x] functionality for ssh-add to load all keys. Idea: `-I <identity>`. Uppercase `i` instead of lowercase to force loading keys.
-* [ ] ssh-askpass issue, empty environmnt, `env -i` https://github.com/ccontavalli/ssh-ident/pull/34 or https://github.com/ccontavalli/ssh-ident/issues/18
+* [ ] ssh-askpass issue, empty environmnt, `env -i` https://github.com/ccontavalli/ssh-ident/pull/34 or https://github.com/ccontavalli/ssh-ident/issues/18 +
+      Idea: list of env var names that are copied over in AgentManager.GetAgentFile()
 * [x] support https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html[XDG_CONFIG_HOME], https://github.com/ccontavalli/ssh-ident/issues/40 +
 $XDG_CONFIG_HOME defines the base directory relative to which user-specific configuration files should be stored. If $XDG_CONFIG_HOME is either not set or empty, a default equal to $HOME/.config should be used.
 * [ ] check `scp user:hostname` issue (colon?), https://github.com/ccontavalli/ssh-ident/issues/35
+* [ ] check/align/fix behavior of binary loop detection. +
+  Python 2 and Python 3 give different results due to the differences between the modules distutils (2.7, recognizes loop and aborts) and shutil (3.3, does not detect loop and uses ssh). +
+  https://github.com/ssh-ident/ssh-ident1/pull/9
 
 == Unlikely changes
 * [ ] Windows support, issues came with https://github.com/ccontavalli/ssh-ident/commit/e6145bdf0a51c18157f097d01823a9e3017428d4
