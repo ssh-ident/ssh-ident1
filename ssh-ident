@@ -767,16 +767,17 @@ class Config(object):
   def Load(self):
     """Load configurations from the default user file."""
     paths = self.Get("FILE_USER_CONFIG")
-    exec_scope = {}
+    exec_globals = LOG_CONSTANTS.copy()
+    exec_locals = {}
     for path in paths:
       # open and compile file
       try:
         with open(path) as file:
-          exec(compile(file.read(), path, 'exec'), LOG_CONSTANTS, exec_scope)
+          exec(compile(file.read(), path, 'exec'), exec_globals, exec_locals)
       except IOError:
         continue
       #
-      self.values = exec_scope
+      self.values = exec_locals
       print('Config file read from {path}'.format(path=path),
           file=sys.stderr,
           loglevel=LOG_DEBUG)
@@ -1479,7 +1480,7 @@ def ParseCommandLine(argv, config, binary):
       if re.match(re_batchmode, p):
         config.Set("SSH_BATCH_MODE", True)
         break
-      elif re.match(re_nobatchmode, p):
+      if re.match(re_nobatchmode, p):
         config.Set("SSH_BATCH_MODE", False)
         break
 
