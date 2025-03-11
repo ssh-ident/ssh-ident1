@@ -280,7 +280,8 @@ DESCRIPTION
       ],
 
       # Output verbosity
-      # valid values are: LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG
+      # Valid values are: "ERROR", "WARNING"/"WARN", "INFO", "DEBUG" (strings)
+      # Backward compatibility: LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG (variables)
       VERBOSITY = LOG_INFO
 
     2) Create the directory where all the identities and agents
@@ -463,4 +464,6 @@ DESCRIPTION
     - Carl Drougge, https://www.github.com/drougge, CVE-2016-0777 fix,
       fix for per user config files, and use /bin/env instead of python
       path.
+    - Eric T. Johnson, https://github.com/yut23/ssh-ident
+      adapted some stuff from his fork (logging)
 

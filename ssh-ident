@@ -280,7 +280,8 @@ To have multiple identities, all I have to do is:
   ],
 
   # Output verbosity
-  # valid values are: LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG
+  # Valid values are: "ERROR", "WARNING"/"WARN", "INFO", "DEBUG" (strings)
+  # Backward compatibility: LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG (variables)
   VERBOSITY = LOG_INFO
 
 2) Create the directory where all the identities and agents
@@ -463,6 +464,8 @@ CREDITS
 - Carl Drougge, https://www.github.com/drougge, CVE-2016-0777 fix,
   fix for per user config files, and use /bin/env instead of python
   path.
+- Eric T. Johnson, https://github.com/yut23/ssh-ident
+  adapted some stuff from his fork (logging)
 """
 
 ## https://python-future.org/compatible_idioms.html
@@ -472,6 +475,7 @@ import collections
 import errno
 import fcntl
 import getpass
+import logging
 import os
 import re
 import socket
@@ -551,92 +555,58 @@ def FindExecutable(cmd, mode=os.F_OK | os.X_OK, path=None):
 ## Copy of shutil.which() - end
 
 
-# constants so no one has to deal with cryptic numbers
-LOG_CONSTANTS = {"LOG_ERROR": 1, "LOG_WARN": 2, "LOG_INFO": 3, "LOG_DEBUG": 4}
-# load them directly into the global scope, for easy use
-# not exactly pretty...
-globals().update(LOG_CONSTANTS)
+# Backward compatibility: constants so no one has to deal with cryptic numbers
+LOG_CONSTANTS = {"LOG_ERROR": logging.ERROR, "LOG_WARN": logging.WARNING, "LOG_INFO": logging.INFO, "LOG_DEBUG": logging.DEBUG}
 
 
-def ShouldPrint(config, loglevel):
-  """Returns true if a message by the specified loglevel should be printed."""
-  # determine the current output verbosity
-  verbosity = config.Get("VERBOSITY")
+## Copy of bracelogger module (1.1.1 plus up to 59b7fe61f6b618bbf30d5c9dcda7ce42010a1135)
+## https://github.com/pR0Ps/bracelogger/blob/master/bracelogger.py
+## https://pypi.org/project/bracelogger/
+import functools
+try:
+    from collections.abc import Mapping
+except ImportError:  # pragma: no cover
+    from collections import Mapping
 
-  # verbosity may be a string, e.g. 'LOG_INFO'
-  # this happens when it comes from the OS env, but also if quotes are
-  # used in the config file
-  if isinstance(verbosity, str):
-    if verbosity in LOG_CONSTANTS:
-      # resolve the loglevel, e.g. 'LOG_INFO' -> 3
-      verbosity = LOG_CONSTANTS[verbosity]
-    else:
-      # the string may also be a number, e.g. '3' -> 3
-      verbosity = int(verbosity)
-  if loglevel <= verbosity:
-    return True
-  return False
+def _get_message(record):
+    """Implement logging.LogRecord.getMessage using brace-style string formatting"""
+    msg = str(record.msg)
+    args = record.args
 
+    # The logging module has a special case where if a LogRecord is constructed
+    # with a single non-empty dict to format into the message, that single dict
+    # is treated as the args instead of the first in a tuple of args.
+    # This is done to enable using key-based templating in log messages. Ex:
+    #     logging.info("a:%(a)s, b:%(b)s", {"a": 1, "b": 2})
+    #
+    # This case is handled here by splatting the dict in as kwargs to allow
+    # using key-based format strings, but also passing it as the first arg to
+    # preserve compatibility with index-based format strings.
+    if isinstance(args, Mapping):
+        msg = msg.format(args, **args)
+    elif args:
+        msg = msg.format(*args)
+    return msg
 
-class SshIdentPrint(object):
-  """Wrapper around python's print function."""
+def _handle_wrap(fcn):
+    """Wrap logging.Handler.handle to use _get_message"""
 
-  def __init__(self, config):
-    """
-    config: object implementing the Config interface, allows access to
-      the user configuration parameters.
+    @functools.wraps(fcn)
+    def handle(record):
+        record.getMessage = functools.partial(_get_message, record)
+        return fcn(record)
 
-    Attributes:
-      config: same as above.
-      python_print: python's print function (hopefully)
+    return handle
 
-    Parameters:
-      SSH_BATCH_MODE: used to check if messages should be printed or not
-      VERBOSITY: used to check if messages should be printed or not
-    """
-    self.config = config
-    self.python_print = print
+def get_bracelogger(name=None):
+    """Get a logger instance that uses brace-style string formatting"""
+    log = logging.getLogger(name)
+    if not hasattr(log, "_bracelogger"):
+        log.handle = _handle_wrap(log.handle)
+    log._bracelogger = True
 
-  def write(self, *args, **kwargs):
-    """Passes all parameters to python's print,
-    unless output is disabled by the configuration.
-    The interface is compatible with python's print, but supports the
-    optional parameter 'loglevel' in addition."""
-    if self.config.Get("SSH_BATCH_MODE"):
-      # no output in BatchMode
-      return
-
-    # determine the loglevel of this message
-    if "loglevel" in kwargs:
-      loglevel = kwargs["loglevel"]
-      # make sure not to pass the loglevel parameter to print
-      del kwargs["loglevel"]
-    else:
-      # if the loglevel is not given, default to INFO
-      loglevel = LOG_INFO
-
-    if ShouldPrint(self.config, loglevel):
-      if "prefix" in kwargs:
-        args = list(args)
-        args.insert(0, kwargs["prefix"])
-        args = tuple(args)
-        # make sure not to pass the prefix parameter to print
-        del kwargs["prefix"]
-      elif loglevel == LOG_DEBUG:
-        args = list(args)
-        args.insert(0, "[debug]")
-        args = tuple(args)
-      elif loglevel == LOG_ERROR:
-        args = list(args)
-        args.insert(0, "[ERROR]")
-        args = tuple(args)
-      elif loglevel == LOG_WARN:
-        args = list(args)
-        args.insert(0, "[Warn]")
-        args = tuple(args)
-      self.python_print(*args, **kwargs)
-
-  __call__ = write
+    return log
+## Copy of bracelogger module - end
 
 
 class Config(object):
@@ -756,9 +726,10 @@ class Config(object):
       "SSH_BATCH_MODE": False,
 
       # Output verbosity
-      # valid values are: LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG
-      # use 0 to disable ALL output (not recommended!)
-      "VERBOSITY": LOG_INFO,
+      # Valid values are: "ERROR", "WARNING"/"WARN", "INFO", "DEBUG" (strings)
+      # Backward compatibility: LOG_ERROR, LOG_WARN, LOG_INFO, LOG_DEBUG (variables)
+      # use 0/NOTSET to disable ALL output (not recommended!)
+      "VERBOSITY": logging.INFO,
   }
 
   def __init__(self):
@@ -778,9 +749,7 @@ class Config(object):
         continue
       #
       self.values = exec_locals
-      print('Config file read from {path}'.format(path=path),
-          file=sys.stderr,
-          loglevel=LOG_DEBUG)
+      logger.debug("Config file read from {0}", path)
       break
     return self
 
@@ -819,11 +788,19 @@ class Config(object):
     elif parameter in self.defaults:
       result = self.Expand(self.defaults[parameter])
     else:
-      print(
-          "Parameter '{0}' needs to be defined in "
-          "config file or defaults".format(parameter), file=sys.stderr,
-          loglevel=LOG_ERROR)
+      logger.error("Parameter '{0}' needs to be defined in config file or defaults", parameter)
       sys.exit(2)
+
+    # Convert string format of VERBOSITY to internal value
+    if parameter == 'VERBOSITY':
+        if isinstance(result, str):
+          if result in loglevels:
+            result = loglevels[result]
+          elif result in LOG_CONSTANTS:
+            result = LOG_CONSTANTS[result]
+          else:
+            # the string may also be a number, e.g. '3' -> 3
+            result = int(result)
 
     # Convert old format of SSH_DEFAULT_OPTIONS/SSH_ADD_DEFAULT_OPTIONS
     if parameter in ("SSH_DEFAULT_OPTIONS", "SSH_ADD_DEFAULT_OPTIONS"):
@@ -859,9 +836,7 @@ class Config(object):
         if new_result:
           result.append(new_result) ## already converted above
       #
-      print("{0}: {1}".format(parameter, result),
-          file=sys.stderr,
-          loglevel=LOG_DEBUG)
+      logger.debug("{0}: {1}", parameter, result)
 
     # Compile patterns for speed
     if parameter in ("PATTERN_KEYS", "PATTERN_PUBKEYS", "PATTERN_PRIVKEYS", "MATCH_PATH", "MATCH_ARGV"):
@@ -879,14 +854,10 @@ class Config(object):
           entry = result[index] = list(entry)
         # Compile regex
         if isinstance(entry, list):
-          print("{0} #{1}: |{2}| {3}".format(parameter, index+1, entry[0], entry[1:]),
-              file=sys.stderr,
-              loglevel=LOG_DEBUG)
+          logger.debug("{0} #{1}: |{2}| {3}", parameter, index+1, entry[0], entry[1:])
           entry[0] = re.compile(entry[0])
         else:
-          print("{0} #{1}: |{2}|".format(parameter, index+1, entry),
-              file=sys.stderr,
-              loglevel=LOG_DEBUG)
+          logger.debug("{0} #{1}: |{2}|", parameter, index+1, entry)
           entry = result[index] = re.compile(entry)
 
     return result
@@ -915,9 +886,7 @@ def FindIdentityInList(elements, identities, all_elements, array_name):
     for regex, identity in identities:
       index += 1
       if re.search(regex, element):
-        print("Matching {0} #{1}: {2}".format(array_name, index, element),
-            file=sys.stderr,
-            loglevel=LOG_DEBUG)
+        logger.debug("Matching {0} #{1}: {2}", array_name, index, element)
         return identity
   # Test against all elements in a single string
   if all_elements and len(elements) > 1:
@@ -926,9 +895,7 @@ def FindIdentityInList(elements, identities, all_elements, array_name):
     for regex, identity in identities:
       index += 1
       if re.search(regex, element):
-        print("Matching {0} #{1}: {2}".format(array_name, index, element),
-            file=sys.stderr,
-            loglevel=LOG_DEBUG)
+        logger.debug("Matching {0} #{1}: {2}", array_name, index, element)
         return identity
   return None
 
@@ -1029,15 +996,13 @@ def FindKeys(identity, config):
       found[key][kind] = keypath
 
   if not found:
-    print("Warning: no keys found for identity {0} in:".format(identity),
-        file=sys.stderr,
-        loglevel=LOG_WARN)
-    print(directories, file=sys.stderr, loglevel=LOG_WARN)
+    logger.warning("Warning: no keys found for identity {0} in:", identity)
+    logger.warning(directories)
   else:
     index = 0
     for keyname in found:
       index += 1
-      print("Found key pair #{0} {1}: {2}{3}".format(index, keyname, found[keyname], " MISSING PUB" if not 'pub' in found[keyname] else " MISSING PRIV" if not 'priv' in found[keyname] else ""), file=sys.stderr, loglevel=LOG_DEBUG)
+      logger.debug("Found key pair #{0} {1}: {2}{3}", index, keyname, found[keyname], " MISSING PUB" if not 'pub' in found[keyname] else " MISSING PRIV" if not 'priv' in found[keyname] else "")
 
   return found
 
@@ -1155,11 +1120,10 @@ class AgentManager(object):
     """
     toload = self.FindUnloadedKeys(keys)
     if toload:
-      print("Loading keys:\n    {0}".format("\n    ".join(toload)),
-          file=sys.stderr, loglevel=LOG_INFO)
+      logger.info("Loading keys:\n    {0}", "\n    ".join(toload))
       self.LoadKeyFiles(toload)
     else:
-      print("All keys already loaded", file=sys.stderr, loglevel=LOG_INFO)
+      logger.info("All keys already loaded")
 
   def FindUnloadedKeys(self, keys):
     """Determines which keys have not been loaded yet.
@@ -1262,18 +1226,15 @@ class AgentManager(object):
     agentfile = os.path.join(
         path, "agent-{0}-{1}".format(identity, socket.gethostname()))
     if os.access(agentfile, os.R_OK) and cls.IsAgentFileValid(agentfile, config):
-      print("Agent for identity {0} ready".format(identity), file=sys.stderr,
-          loglevel=LOG_DEBUG)
+      logger.debug("Agent for identity {0} ready", identity)
       return agentfile
 
     if binary in config.Get("BINARIES_NO_NEW_AGENT"):
-      print("No new agent for identity {0} due to binary {1}".format(identity, binary), file=sys.stderr,
-        loglevel=LOG_ERROR)
+      logger.error("No new agent for identity {0} due to binary {1}", identity, binary)
       sys.exit(1)
       return None
 
-    print("Preparing new agent for identity {0}".format(identity), file=sys.stderr,
-        loglevel=LOG_DEBUG)
+    logger.debug("Preparing new agent for identity {0}", identity)
     retval = subprocess.call(
         ["/usr/bin/env", "-i", "/bin/sh", "-c", "{0} > {1}".format(config.Get("BINARY_SSH_AGENT"), agentfile)])
     return agentfile
@@ -1284,8 +1245,7 @@ class AgentManager(object):
     retval, output = cls.RunShellCommandInAgent(
         agentfile, "{0} -l >/dev/null 2>/dev/null".format(config.Get("BINARY_SSH_ADD")))
     if retval & 0xff not in [0, 1]:
-      print("Agent in {0} not running".format(agentfile), file=sys.stderr,
-          loglevel=LOG_DEBUG)
+      logger.debug("Agent in {0} not running", agentfile)
       return False
     return True
 
@@ -1302,9 +1262,7 @@ class AgentManager(object):
     """Runs a shell command with an agent configured in the environment."""
     command = ["/bin/sh", "-c",
                ". {0} >/dev/null 2>/dev/null; {1}".format(agentfile, command)]
-    print("RunShellCommandInAgent: {0}:".format(command),
-        file=sys.stderr,
-        loglevel=LOG_DEBUG)
+    logger.debug("RunShellCommandInAgent: {0}:", command)
     process = subprocess.Popen(command, stdin=stdin, stdout=stdout)
     stdout, stderr = process.communicate()
     return process.wait(), stdout
@@ -1320,7 +1278,7 @@ class AgentManager(object):
   def GetShellArgs(self):
     """Returns the flags to be passed to the shell to run a command."""
     shell_args = "-c"
-    if ShouldPrint(self.config, LOG_DEBUG):
+    if logger.isEnabledFor(logging.DEBUG):
       shell_args = "-xc"
     return shell_args
 
@@ -1340,9 +1298,7 @@ class AgentManager(object):
         ". {0} >/dev/null 2>/dev/null; exec {1} {2} {3}".format(
             self.agent_file, self.config.Get("BINARY_SSH"),
             additional_flags, self.EscapeShellArguments(argv))]
-    print("RunSSH: {0}:".format(command),
-        file=sys.stderr,
-        loglevel=LOG_DEBUG)
+    logger.debug("RunSSH: {0}:", command)
     os.execv("/bin/sh", command)
 
 def AutodetectBinary(runtime_name, config, binary_checks):
@@ -1353,8 +1309,7 @@ def AutodetectBinary(runtime_name, config, binary_checks):
   for config_name in list(binary_checks.keys()):
     binary_path = config.Get(config_name)
     if binary_path:
-      print("Will run '{0}' as {1} binary - set by user via {2}"
-          .format(binary_path, binary_checks[config_name][-1], config_name), loglevel=LOG_DEBUG)
+      logger.debug("Will run '{0}' as {1} binary - set by user via {2}", binary_path, binary_checks[config_name][-1], config_name)
       del binary_checks[config_name]
   if not binary_checks:
     return
@@ -1368,12 +1323,11 @@ def AutodetectBinary(runtime_name, config, binary_checks):
         if not os.path.isfile(binary_path) or not os.access(binary_path, os.X_OK):
           continue
         if os.path.samefile(binary_path, runtime_name):
-          print("Binary \"{0}\" is \"{1}\" and therefore skipped".format(binary_path, runtime_name), file=sys.stderr, loglevel=LOG_DEBUG)
+          logger.debug("Binary \"{0}\" is \"{1}\" and therefore skipped", binary_path, runtime_name)
           continue
         #
         config.Set(config_name, binary_path)
-        print("Will run '{0}' as {1} binary - detected based on BINARY_DIR"
-            .format(binary_path, binary_checks[config_name][-1]), loglevel=LOG_DEBUG)
+        logger.debug("Will run '{0}' as {1} binary - detected based on BINARY_DIR", binary_path, binary_checks[config_name][-1])
         del binary_checks[config_name]
         break
     if "BINARY_SSH" in binary_checks:
@@ -1392,7 +1346,7 @@ def AutodetectBinary(runtime_name, config, binary_checks):
         BINARY_DIR or BINARY_SSH plus BINARY_SSH_AGENT plus BINARY_SSH_ADD in
         your config, or running ssh-ident some other way.\
       """)
-      print(message.format(runtime_name, binary_names, binary_path_base), loglevel=LOG_ERROR)
+      logger.error(message, runtime_name, binary_names, binary_path_base)
       sys.exit(255)
   if not binary_checks:
     return
@@ -1428,12 +1382,11 @@ def AutodetectBinary(runtime_name, config, binary_checks):
         if os.path.samefile(binary_path, runtime_name):
           exclude_path = os.path.dirname(binary_path)
           normalized_path_search.remove(exclude_path)
-          print("Binary \"{0}\" is \"{1}\" and therefore skipped".format(binary_path, runtime_name), file=sys.stderr, loglevel=LOG_DEBUG)
+          logger.debug("Binary \"{0}\" is \"{1}\" and therefore skipped", binary_path, runtime_name)
           continue
         #
         config.Set(config_name, binary_path)
-        print("Will run '{0}' as {1} binary - detected from argv[0] and ${{PATH}}"
-            .format(config.Get(config_name), binary_checks[config_name][-1]), loglevel=LOG_DEBUG)
+        logger.debug("Will run '{0}' as {1} binary - detected from argv[0] and ${{PATH}}", config.Get(config_name), binary_checks[config_name][-1])
         del binary_checks[config_name]
         break
       if binary_path:
@@ -1457,7 +1410,7 @@ def AutodetectBinary(runtime_name, config, binary_checks):
     BINARY_DIR or BINARY_SSH plus BINARY_SSH_AGENT plus BINARY_SSH_ADD in
     your config, or running ssh-ident some other way.\
   """)
-  print(message.format(runtime_name, binary_names, os.environ['PATH']), loglevel=LOG_ERROR)
+  logger.error(message, runtime_name, binary_names, os.environ['PATH'])
   sys.exit(255)
 
 def ParseCommandLine(argv, config, binary):
@@ -1508,13 +1461,19 @@ def main(argv):
   # set defaults in environment and configuration
   Config.SetXdgDefaults()
   config = Config()
-
-  # overwrite python's print function with the wrapper SshIdentPrint (needs config)
-  global print
-  print = SshIdentPrint(config)
+  if config.Get("SSH_BATCH_MODE"):
+      # no output in BatchMode
+      logger.setLevel(logging.CRITICAL)
+  else:
+      logger.setLevel(config.Get("VERBOSITY"))
 
   # get user configuration if available
   config.Load()
+  if config.Get("SSH_BATCH_MODE"):
+      # no output in BatchMode
+      logger.setLevel(logging.CRITICAL)
+  else:
+      logger.setLevel(config.Get("VERBOSITY"))
 
   # argv[0] could be pretty much anything the caller decides to set
   # it to: an absolute path, a relative path (common in older systems),
@@ -1548,8 +1507,7 @@ def main(argv):
       BINARY_SSH_AGENT plus BINARY_SSH_ADD, or run ssh-ident differently
       to prevent this problem.\
     """)
-    print(message.format(argv[0], os.environ['PATH']),
-        loglevel=LOG_WARN)
+    logger.warning(message, argv[0], os.environ['PATH'])
 
   # Autodetect BINARY_SSH.
   # Either explicitily defined, ssh-ident as wrapper or fallback to ssh.
@@ -1582,9 +1540,7 @@ def main(argv):
     identity = extra["identity"]
   else:
     identity, parameter = FindIdentity(argv, config)
-  print("Identity via {0}: {1}".format(parameter, identity),
-      file=sys.stderr,
-      loglevel=LOG_DEBUG)
+  logger.debug("Identity via {0}: {1}", parameter, identity)
 
   # Autodetect BINARY_SSH_AGENT and BINARY_SSH_ADD.
   # Either explicitily defined, defined per identity or default to ssh-agent/ssh-add.
@@ -1625,7 +1581,17 @@ def main(argv):
 
 
 if __name__ == "__main__":
+  logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.DEBUG)
+  logger = get_bracelogger('ssh-ident')
+  logger.setLevel(logging.INFO)
+  try:
+    ## Python 3.11+
+    loglevels = logging.getLevelNamesMapping()
+  except AttributeError as e:
+    ## Python -3.10 fallback
+    loglevels = {key: value for key,value in vars(logging).items() if key in ('CRITICAL','DEBUG','ERROR','FATAL','INFO','NOTSET','WARN','WARNING')}
+
   try:
     sys.exit(main(sys.argv))
   except KeyboardInterrupt:
-    print("Goodbye", file=sys.stderr, loglevel=LOG_DEBUG)
+    logger.debug("Goodbye")
