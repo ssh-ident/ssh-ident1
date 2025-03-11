@@ -450,7 +450,7 @@ CREDITS
 =======
 
 - ssh-ident Team, https://github.com/ssh-ident/, main authors.
-- Carlo Contavalli, http://www.github.com/ccontavalli, main author.
+- Carlo Contavalli, http://www.github.com/ccontavalli, original main author.
 - Hubert depesz Lubaczewski, http://www.github.com/despez, support
   for using environment variables for configuration.
 - Flip Hess, http://www.github.com/fliphess, support for building
@@ -465,6 +465,7 @@ CREDITS
   path.
 """
 
+## https://python-future.org/compatible_idioms.html
 from __future__ import print_function
 
 import collections
@@ -547,9 +548,10 @@ def FindExecutable(cmd, mode=os.F_OK | os.X_OK, path=None):
         if _access_check(name, mode):
           return name
   return None
+## Copy of shutil.which() - end
 
 
-# constants so noone has deal with cryptic numbers
+# constants so no one has to deal with cryptic numbers
 LOG_CONSTANTS = {"LOG_ERROR": 1, "LOG_WARN": 2, "LOG_INFO": 3, "LOG_DEBUG": 4}
 # load them directly into the global scope, for easy use
 # not exactly pretty...
@@ -1613,6 +1615,7 @@ def main(argv):
     # Load keys when not in BatchMode
     agent.LoadUnloadedKeys(keys)
   return agent.RunSSH(argv[1:])
+
 
 if __name__ == "__main__":
   try:
