@@ -944,10 +944,20 @@ def FindIdentity(argv, config):
     string, the name of the identity to use.
   """
   paths = set([os.getcwd(), os.path.abspath(os.getcwd()), os.path.normpath(os.getcwd())])
-  return (
-      FindIdentityInList(argv, config.Get("MATCH_ARGV"), True, "MATCH_ARGV") or
-      FindIdentityInList(paths, config.Get("MATCH_PATH"), False, "MATCH_PATH") or
-      config.Get("DEFAULT_IDENTITY"))
+  identity = None
+  if not identity:
+    parameter = "MATCH_ARGV"
+    identity = FindIdentityInList(argv, config.Get(parameter), True, parameter)
+    if not identity:
+      parameter = "MATCH_PATH"
+      identity = FindIdentityInList(paths, config.Get(parameter), False, parameter)
+      if not identity:
+        parameter = "DEFAULT_IDENTITY"
+        identity = config.Get(parameter)
+        if not identity:
+          parameter = "none"
+
+  return identity, parameter
 
 def FindKeys(identity, config):
   """Finds all the private and public keys associated with an identity.
@@ -1565,20 +1575,16 @@ def main(argv):
   # Determine identity.
   identity = None
   if "SSH_IDENT_ID" in os.environ:
-    identity = os.environ["SSH_IDENT_ID"]
-    print("Identity via SSH_IDENT_ID: {0}".format(identity),
-        file=sys.stderr,
-        loglevel=LOG_DEBUG)
+    parameter = "SSH_IDENT_ID"
+    identity = os.environ[parameter]
   elif "identity" in extra:
+    parameter = "command line"
     identity = extra["identity"]
-    print("Identity via parameter: {0}".format(identity),
-        file=sys.stderr,
-        loglevel=LOG_DEBUG)
   else:
-    identity = FindIdentity(argv, config)
-    print("Identity via match: {0}".format(identity),
-        file=sys.stderr,
-        loglevel=LOG_DEBUG)
+    identity, parameter = FindIdentity(argv, config)
+  print("Identity via {0}: {1}".format(parameter, identity),
+      file=sys.stderr,
+      loglevel=LOG_DEBUG)
 
   # Autodetect BINARY_SSH_AGENT and BINARY_SSH_ADD.
   # Either explicitily defined, defined per identity or default to ssh-agent/ssh-add.
