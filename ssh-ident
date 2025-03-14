@@ -448,7 +448,7 @@ derivate, you can now build debian packages.
 
 
 CREDITS
-=======
+========
 
 - ssh-ident Team, https://github.com/ssh-ident/, main authors.
 - Carlo Contavalli, http://www.github.com/ccontavalli, original main author.
@@ -791,7 +791,7 @@ class Config(object):
       logger.error("Parameter '{0}' needs to be defined in config file or defaults", parameter)
       sys.exit(2)
 
-    # Convert string format of VERBOSITY to internal value
+    # Convert string format of VERBOSITY into internal value
     if parameter == 'VERBOSITY':
         if isinstance(result, str):
           if result in loglevels:
@@ -1021,7 +1021,6 @@ def FindSSHConfig(identity, config):
   directories = [os.path.join(config.Get("DIR_IDENTITIES"), identity)]
 
   pattern = re.compile(config.Get("PATTERN_CONFIG"))
-  sshconfigs = collections.defaultdict(dict)
   for directory in directories:
     try:
       sshconfigs = os.listdir(directory)
