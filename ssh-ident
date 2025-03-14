@@ -48,7 +48,7 @@ ssh-ident with two simple commands:
 
    mkdir -p ~/bin; wget -O ~/bin/ssh https://raw.githubusercontent.com/ssh-ident/ssh-ident1/refs/heads/dev/ssh-ident ; chmod 0755 ~/bin/ssh
 
-   echo 'export PATH="${HOME}/bin:${PATH}"' >> ~/.bashrc
+   echo 'export PATH="~/bin:${PATH}"' >> ~/.bashrc
 
 Logout, login, and done. SSH should now invoke ssh-ident instead of the
 standard ssh.
@@ -84,7 +84,7 @@ to solve the problem:
    ssh-ident in a directory in your PATH before /usr/bin or /bin, similarly
    to what was described previously. For example, add to your .bashrc:
 
-    export PATH="${HOME}/bin:${PATH}"
+    export PATH="~/bin:${PATH}"
 
    And run:
 
@@ -174,7 +174,7 @@ To have multiple identities, all I have to do is:
 
    ssh-ident follows the XDG base dir specs (see https://specifications.freedesktop.org/basedir-spec/latest/)
    and looks for "${XDG_CONFIG_HOME}/ssh-ident/ssh-ident1" which defaults to "~/.config/ssh-ident/ssh-ident1".
-   When the file at the XDG path is missing, then it looks for the legacy file "${HOME}/.ssh-ident".
+   When the file at the XDG path is missing, then it looks for the legacy file "~/.ssh-ident".
 
    In this file, I need to tell ssh-ident which identities to use and when.
    The file should look something like:
@@ -402,8 +402,8 @@ Note: As the ".pub" and ".key" patterns come first, files that also have
 
 You can also redefine:
 
-      DIR_IDENTITIES = "${HOME}/.ssh/identities"
-      DIR_AGENTS = "${HOME}/.ssh/agents"
+      DIR_IDENTITIES = "~/.ssh/identities"
+      DIR_AGENTS = "~/.ssh/agents"
 
 To point somewhere else if you so desire.
 
@@ -645,14 +645,14 @@ class Config(object):
   defaults = {
       # Where to find the per-user configuration.
       "FILE_USER_CONFIG": [
-        '${XDG_CONFIG_HOME}/ssh-ident/ssh-ident1', # XDG config path
-        '${HOME}/.ssh-ident', # legacy path (fallback)
+        '${XDG_CONFIG_HOME}/ssh-ident/ssh-ident1', # XDG config file path
+        '~/.ssh-ident', # legacy config file path (fallback)
       ],
 
       # Where to find all the identities for the user.
-      "DIR_IDENTITIES": "${HOME}/.ssh/identities",
+      "DIR_IDENTITIES": "~/.ssh/identities",
       # Where to keep the information about each running agent.
-      "DIR_AGENTS": "${HOME}/.ssh/agents",
+      "DIR_AGENTS": "~/.ssh/agents",
 
       # How to identify key files in the identities directory.
       "PATTERN_KEYS": [
@@ -715,7 +715,7 @@ class Config(object):
 
       # Which identity to use by default if we cannot tell from
       # the current working directory and/or argv.
-      "DEFAULT_IDENTITY": "${USER}",
+      "DEFAULT_IDENTITY": getpass.getuser(),
 
       # Those should really be overridden by the user. Look
       # at the documentation for more details.
@@ -788,13 +788,13 @@ class Config(object):
   def SetXdgDefaults(cls):
     # see https://specifications.freedesktop.org/basedir-spec/latest/
     if not 'XDG_DATA_HOME' in os.environ:
-      os.environ['XDG_DATA_HOME'] = os.path.expandvars('${HOME}/.local/share')
+      os.environ['XDG_DATA_HOME'] = os.path.expanduser('~/.local/share')
     if not 'XDG_CONFIG_HOME' in os.environ:
-      os.environ['XDG_CONFIG_HOME'] = os.path.expandvars('${HOME}/.config')
+      os.environ['XDG_CONFIG_HOME'] = os.path.expanduser('~/.config')
     if not 'XDG_STATE_HOME' in os.environ:
-      os.environ['XDG_STATE_HOME'] = os.path.expandvars('${HOME}/.local/state')
+      os.environ['XDG_STATE_HOME'] = os.path.expanduser('~/.local/state')
     if not 'XDG_CACHE_HOME' in os.environ:
-      os.environ['XDG_CACHE_HOME'] = os.path.expandvars('${HOME}/.cache')
+      os.environ['XDG_CACHE_HOME'] = os.path.expanduser('~/.cache')
 
   @classmethod
   def Expand(cls, value):
