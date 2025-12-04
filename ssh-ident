@@ -654,7 +654,14 @@ class Config(object):
       "BINARIES_SSH_BATCHMODE": ['ssh', 'scp', ],
 
       # List of binaries with virtual first parameter -i/-I <identity> via ssh-ident
+      # By default keys are only loaded when using virtual parameter '-I' (uppercase)
       "BINARIES_ARGV1_IDENTITY": ['ssh-pageant', 'ssh-agent', 'ssh-add', ],
+
+      # List of multiple ssh binaries as keys, that have local options
+      # for which keys are not needed/loaded, like ssh's -V/-G/-Q/-O
+      "BINARIES_SSH_OPTIONS_NO_KEYS": [
+        [ ['ssh', ], [ "-V", "-G", "-Q", "-O", ]],
+      ],
 
       # List of binaries to not load keys for with virtual first parameter '-i' (lowercase)
       "BINARIES_NO_KEYS": ['ssh-pageant', 'ssh-agent', 'ssh-add', ],
@@ -662,7 +669,7 @@ class Config(object):
       # List of binaries to not create new agent for
       "BINARIES_NO_NEW_AGENT": [],
 
-      # List with multiple identities and ssh binaries as keys, automatically
+      # List of multiple identities and ssh binaries as keys, automatically
       # adds the specified options to the ssh command run (all fitting entries).
       # First element is a list of identities, second element is a list of
       # binaries and third element is the option string.
@@ -1449,6 +1456,16 @@ def ParseCommandLine(argv, config, binary):
       if re.match(re_nobatchmode, p):
         config.Set("SSH_BATCH_MODE", False)
         break
+
+  for definition in config.Get("BINARIES_SSH_OPTIONS_NO_KEYS"):
+    if binary in definition[0]:
+      logger.debug("Binary with no-keys options: {0} {1}", binary, definition[1])
+      for p in argv:
+        if p in definition[1]:
+          extra["loadkeys"] = False
+          logger.debug("Binary with no-keys options: {0} not loading keys", binary)
+          break
+      break
 
   return extra
 
